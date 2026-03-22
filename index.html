@@ -1,0 +1,64 @@
+<script>
+let studentData = null;
+
+// AUTO LOGIN
+window.addEventListener('DOMContentLoaded', async () => {
+    const savedReg = localStorage.getItem('safal_student_reg');
+    const savedPass = localStorage.getItem('safal_student_pass');
+    if(savedReg && savedPass) {
+        await attemptLogin(savedReg, savedPass);
+    }
+});
+
+// LOGIN
+document.getElementById('loginForm').addEventListener('submit', async(e) => {
+    e.preventDefault();
+    const regNo = document.getElementById('loginRegNo').value.trim().toUpperCase();
+    const pass = document.getElementById('loginPass').value.trim();
+    await attemptLogin(regNo, pass);
+});
+
+async function attemptLogin(regNo, pass) {
+    const btn = document.getElementById('loginBtn');
+    btn.innerText = "Authenticating...";
+
+    try {
+        const res = await fetch("https://your-backend.onrender.com/api/login", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ regNo, pass })
+        });
+
+        const data = await res.json();
+
+        if(data.success){
+            studentData = data.user;
+
+            localStorage.setItem('safal_student_reg', regNo);
+            localStorage.setItem('safal_student_pass', pass);
+
+            renderDash();
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
+        } else {
+            document.getElementById('errorMsg').classList.remove('hidden');
+        }
+
+    } catch(err){
+        console.error(err);
+        alert("Server error");
+    }
+
+    btn.innerText = "Secure Login";
+}
+
+// PAYMENT HISTORY FROM BACKEND
+window.openPaymentHistory = async () => {
+    document.getElementById('paymentModal').classList.remove('hidden');
+
+    const res = await fetch(`https://your-backend.onrender.com/api/payments/${studentData.regNo}`);
+    const payments = await res.json();
+
+    // (Same UI render logic you already wrote)
+};
+</script>
