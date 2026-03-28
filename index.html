@@ -11,8 +11,10 @@
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800;900&display=swap');
+        
         body { 
             font-family: 'Plus Jakarta Sans', sans-serif; 
+            /* LIGHT, FAST GRADIENT BACKGROUND */
             background: linear-gradient(-45deg, #e0f2fe, #f8fafc, #dbeafe, #bae6fd); 
             background-size: 400% 400%; 
             animation: gradientBG 6s ease infinite; 
@@ -21,15 +23,18 @@
         }
         @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         
+        /* CHANGED ICON COLOR TO SOFT BLUE TO BE VISIBLE ON LIGHT BACKGROUND */
         .book-icon { position: absolute; color: rgba(37, 99, 235, 0.15); font-size: 4rem; animation: floatUp 6s linear infinite; pointer-events: none; }
         @keyframes floatUp { 0% { transform: translateY(100vh) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; } }
         
+        /* SOFTER SHADOW FOR LIGHT THEME */
         .glass-card { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); border-radius: 2rem; box-shadow: 0 20px 40px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.6); }
         .digital-id { background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); }
         
         .scanner-overlay { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.8); }
         .hidden { display: none !important; }
         
+        /* Modal Animations */
         .modal-pop { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
         @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
     </style>
@@ -149,12 +154,7 @@
                 <h2 class="text-white font-black text-xl uppercase tracking-widest">Payment History</h2>
                 <p class="text-blue-400 text-xs font-bold tracking-widest mt-1">Past Transactions</p>
             </div>
-            <div class="p-6 overflow-y-auto bg-slate-50 flex-1" id="paymentListContainer">
-                <div class="text-center py-10 text-slate-400">
-                    <i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3 text-blue-500"></i>
-                    <p class="text-xs font-bold uppercase">Loading records...</p>
-                </div>
-            </div>
+            <div class="p-6 overflow-y-auto bg-slate-50 flex-1" id="paymentListContainer"></div>
         </div>
     </div>
 
@@ -211,13 +211,12 @@
     <style>@keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }</style>
 
     <script>
-        // REPLACE THIS URL WITH YOUR ACTUAL RENDER DEPLOYMENT URL
-        const BACKEND_URL = "https://your-safal-backend.onrender.com/api";
-        
+        // --- SECURE BACKEND CONNECTION ---
+        const BACKEND_URL = "https://test-eyaw.onrender.com";
         let studentData = null;
         let scanner = null;
-        let isProcessingQR = false;
 
+        // --- 1. PERSISTENT LOGIN (AUTO-LOGIN) ---
         window.addEventListener('DOMContentLoaded', async () => {
             const savedReg = localStorage.getItem('safal_student_reg');
             const savedPass = localStorage.getItem('safal_student_pass');
@@ -225,8 +224,10 @@
                 document.getElementById('loginBtn').innerText = "Resuming Session...";
                 await attemptLogin(savedReg, savedPass);
             }
+            generateBackground(); // start floating books
         });
 
+        // --- 2. LOGIN LOGIC ---
         document.getElementById('loginForm').addEventListener('submit', async(e) => {
             e.preventDefault(); 
             const r = document.getElementById('loginRegNo').value.trim().toUpperCase(); 
@@ -237,17 +238,22 @@
         async function attemptLogin(regNo, pass) {
             const btn = document.getElementById('loginBtn'); 
             btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Authenticating...`;
+            document.getElementById('errorMsg').classList.add('hidden');
             
             try {
-                const response = await fetch(`${BACKEND_URL}/login`, {
+                // Call Node.js Backend instead of Firebase directly
+                const response = await fetch(`${BACKEND_URL}/api/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ regNo, password: pass })
+                    body: JSON.stringify({ regNo, pass })
                 });
-
-                if(response.ok) {
-                    studentData = await response.json(); 
+                
+                const data = await response.json();
+                
+                if(data.success) {
+                    studentData = data.user; 
                     
+                    // Save session
                     localStorage.setItem('safal_student_reg', regNo);
                     localStorage.setItem('safal_student_pass', pass);
                     
@@ -256,13 +262,14 @@
                     document.getElementById('dashboardSection').classList.remove('hidden');
                 } else { 
                     document.getElementById('errorMsg').classList.remove('hidden');
-                    btn.innerHTML = `Secure Login <i class="fa-solid fa-arrow-right ml-2"></i>`;
-                    localStorage.clear(); 
+                    localStorage.removeItem('safal_student_reg');
+                    localStorage.removeItem('safal_student_pass');
                 }
             } catch (err) {
-                console.error("Login API Error:", err);
-                btn.innerHTML = `Secure Login <i class="fa-solid fa-arrow-right ml-2"></i>`;
+                console.error(err);
+                alert("Cannot connect to server. Please try again later.");
             }
+            btn.innerHTML = `Secure Login <i class="fa-solid fa-arrow-right ml-2"></i>`;
         }
 
         window.logout = function() {
@@ -270,42 +277,52 @@
             location.reload();
         }
 
+        // --- 3. RENDER DASHBOARD UI ---
         function renderDash() {
-            document.getElementById('dispName').innerText = studentData.name; 
+            document.getElementById('dispName').innerText = studentData.name || "Student"; 
             document.getElementById('dispRegNo').innerText = "#" + studentData.regNo;
+            
             document.getElementById('dispTime').innerText = formatTime(studentData.shiftStart) + " - " + formatTime(studentData.shiftEnd);
             document.getElementById('dispFather').innerText = studentData.father || "N/A"; 
             document.getElementById('dispAadhar').innerText = studentData.aadhar || "N/A";
             document.getElementById('dispAddress').innerText = studentData.address || "N/A"; 
             document.getElementById('profileImg').src = studentData.image || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
 
-            const today = new Date();
-            today.setHours(0,0,0,0);
-            const due = new Date(studentData.feeDueDate);
-            const feeBox = document.getElementById('feeBox');
-            const feeIcon = document.getElementById('feeIcon');
-            const dispFee = document.getElementById('dispFeeDate');
-            
-            if (due < today) {
-                feeBox.className = "bg-red-50 p-4 rounded-2xl border border-red-200 shadow-sm animate-pulse";
-                feeIcon.className = "w-8 h-8 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2";
-                feeIcon.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i>`;
-                dispFee.className = "font-black text-sm mt-1 text-red-700";
-                dispFee.innerText = "OVERDUE (" + formatDateStr(studentData.feeDueDate) + ")";
-            } else {
-                dispFee.className = "font-bold text-sm mt-1 text-slate-800";
-                dispFee.innerText = formatDateStr(studentData.feeDueDate);
+            // Smart Fee Warning Logic
+            if(studentData.feeDueDate) {
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                const due = new Date(studentData.feeDueDate);
+                const feeBox = document.getElementById('feeBox');
+                const feeIcon = document.getElementById('feeIcon');
+                const dispFee = document.getElementById('dispFeeDate');
+                
+                if (due < today) {
+                    feeBox.className = "bg-red-50 p-4 rounded-2xl border border-red-200 shadow-sm animate-pulse";
+                    feeIcon.className = "w-8 h-8 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2";
+                    feeIcon.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i>`;
+                    dispFee.className = "font-black text-sm mt-1 text-red-700";
+                    dispFee.innerText = "OVERDUE (" + formatDateStr(studentData.feeDueDate) + ")";
+                } else {
+                    dispFee.className = "font-bold text-sm mt-1 text-slate-800";
+                    dispFee.innerText = formatDateStr(studentData.feeDueDate);
+                }
             }
         }
 
+        // --- PAYMENT HISTORY LOGIC ---
         window.openPaymentHistory = async () => {
             document.getElementById('paymentModal').classList.remove('hidden');
             const container = document.getElementById('paymentListContainer');
             container.innerHTML = `<div class="text-center py-10 text-slate-400"><i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3 text-blue-500"></i><p class="text-xs font-bold uppercase">Loading records...</p></div>`;
 
             try {
-                const response = await fetch(`${BACKEND_URL}/payments/${studentData.regNo}`);
-                const payments = await response.json();
+                // Fetch from Node.js Backend
+                const res = await fetch(`${BACKEND_URL}/api/payments/${studentData.regNo}`);
+                const payments = await res.json();
+                
+                // Sort descending by date (newest first)
+                payments.sort((a, b) => new Date(b.date) - new Date(a.date));
 
                 if(payments.length === 0) {
                     container.innerHTML = `
@@ -341,55 +358,47 @@
             }
         }
 
-        window.closePaymentHistory = () => document.getElementById('paymentModal').classList.add('hidden');
+        window.closePaymentHistory = () => { document.getElementById('paymentModal').classList.add('hidden'); }
         window.openRules = () => document.getElementById('rulesModal').classList.remove('hidden');
         window.closeRules = () => document.getElementById('rulesModal').classList.add('hidden');
 
+        // --- 4. QR SCANNER LOGIC ---
         window.startAttendanceScanner = () => {
             document.getElementById('scannerView').classList.remove('hidden');
-            isProcessingQR = false; 
-            
             scanner = new Html5Qrcode("reader");
             scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, async (code) => {
                 
-                if (isProcessingQR) return; 
-
                 if (code.startsWith("SAFAL_SEAT_") || code === "SAFAL_LIB_ENTRY_2026") {
-                    isProcessingQR = true; 
+                    await stopAttendanceScanner();
                     
+                    const seatNum = code.startsWith("SAFAL_SEAT_") ? code.split("_")[2] : null;
+                    
+                    // Send to Backend
                     try {
-                        const seatNum = code.startsWith("SAFAL_SEAT_") ? code.split("_")[2] : null;
-                        const endpoint = seatNum ? '/attendance/seat' : '/attendance/entry';
+                        const payload = {
+                            studentId: studentData.id,
+                            name: studentData.name,
+                            regNo: studentData.regNo,
+                            seatNo: seatNum,
+                            timestamp: new Date().toISOString()
+                        };
 
-                        const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+                        await fetch(`${BACKEND_URL}/api/attendance`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                studentId: studentData.id,
-                                regNo: studentData.regNo,
-                                name: studentData.name,
-                                seatNo: seatNum 
-                            })
+                            body: JSON.stringify(payload)
                         });
 
-                        if (response.ok) {
-                            if (seatNum) {
-                                studentData.seatNo = seatNum; 
-                                renderDash(); 
-                                alert(`✅ Attendance Marked! Assigned to Seat ${seatNum}`);
-                            } else {
-                                alert("✅ Entry Attendance Marked Successfully!");
-                            }
+                        if(seatNum) {
+                            studentData.seatNo = seatNum; // Update local state
+                            renderDash(); 
+                            alert(`✅ Attendance Marked! Assigned to Seat ${seatNum}`);
                         } else {
-                            throw new Error("Backend rejected the scan");
+                            alert("✅ Entry Attendance Marked Successfully!");
                         }
 
-                        await stopAttendanceScanner(); 
-
-                    } catch (error) {
-                        console.error("API Write Error:", error);
-                        alert("❌ Failed to save attendance. Please check your network connection.");
-                        isProcessingQR = false;
+                    } catch(err) {
+                        alert("Error saving attendance to server.");
                     }
                 }
             });
@@ -400,23 +409,28 @@
             document.getElementById('scannerView').classList.add('hidden'); 
         }
 
+        // Helpers
         function formatTime(t){if(!t)return"--";const[h,m]=t.split(':');return`${h%12||12}:${m}${h>=12?'PM':'AM'}`;}
         function formatDateStr(dateStr) {
             if(!dateStr) return "--/--/----";
             const d = new Date(dateStr);
             return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
         }
-        
-        const bgContainer = document.getElementById('bg-animation');
-        for(let i=0; i<20; i++){ 
-            const b = document.createElement('i'); 
-            b.className = 'fa-solid fa-book book-icon'; 
-            b.style.left = Math.random() * 100 + 'vw'; 
-            b.style.animationDuration = (4 + Math.random() * 4) + 's'; 
-            b.style.animationDelay = (Math.random() * 3) + 's';
-            const icons = ['fa-book', 'fa-graduation-cap', 'fa-pen', 'fa-laptop-code'];
-            b.classList.add(icons[Math.floor(Math.random() * icons.length)]);
-            bgContainer.appendChild(b);
+
+        // Background Animation Generator
+        function generateBackground() {
+            const bgContainer = document.getElementById('bg-animation');
+            bgContainer.innerHTML = ''; // clear old
+            for(let i=0; i<20; i++){ 
+                const b = document.createElement('i'); 
+                b.className = 'fa-solid fa-book book-icon'; 
+                b.style.left = Math.random() * 100 + 'vw'; 
+                b.style.animationDuration = (4 + Math.random() * 4) + 's'; 
+                b.style.animationDelay = (Math.random() * 3) + 's';
+                const icons = ['fa-book', 'fa-graduation-cap', 'fa-pen', 'fa-laptop-code'];
+                b.classList.add(icons[Math.floor(Math.random() * icons.length)]);
+                bgContainer.appendChild(b);
+            }
         }
     </script>
 </body>
